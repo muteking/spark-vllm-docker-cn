@@ -1,3 +1,13 @@
+# 开机第一步先睹为快，感受一下128G内存被瞬间灌满的感觉把！！！
+开机后打开终端依次运行下列命令：
+```bash
+git clone https://github.com/muteking/spark-vllm-docker-cn.git
+cd spark-vllm-docker-cn
+##一键部署环境，第一次运行需要下载会比较慢。
+./build-and-copy.sh
+##选择可用的配置加载相应模型，不同模型等待加载根据网络情况耗时不等。首次需要下载比较慢。
+./run-recipe.sh
+```
 # vLLM Docker Optimized for DGX Spark (单节点/多节点)
 
 > **中文说明：** 本仓库基于 [spark-vllm-docker](https://github.com/eugr/spark-vllm-docker) 进行本地化改进，添加中英双语支持，并在大模型下载时优先使用魔社源和HuggingFace国内镜像，更好地支持中文用户。
@@ -13,7 +23,7 @@ While it was primarily developed to support multi-node inference, it works just 
 ### 🎯 项目简介
 
 ✅本项目是为 **DGX Spark 集群**优化的 vLLM Docker 配置和启动脚本。支持多节点 vLLM 推理集群部署，兼容 InfiniBand/RDMA (NCCL) 高速网络。
-✅本项目更改了hf-download.sh脚本适配国内环境下载，添加了国内modelscope下载和HuggingFace国内镜像以提升下载速度。
+✅本项目更改了hf-download.sh脚本适配国内环境下载，添加了国内魔社modelscope下载和HuggingFace国内镜像以提升下载速度。
 ✅本项目所有翻译都由机器完成，不保证准确性。
 
 ### 🚀 主要功能
