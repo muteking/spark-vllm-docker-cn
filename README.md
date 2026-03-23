@@ -1,4 +1,4 @@
-# 开机第一步先睹为快，体验一下128G内存被瞬间灌满的感觉把！！！
+# 开机第一步先睹为快，体验一下128G内存被瞬间灌满的感觉吧！！！
 开机后打开终端依次运行下列命令：
 ```bash
 git clone https://github.com/muteking/spark-vllm-docker-cn.git
