@@ -45,6 +45,9 @@ While it was primarily developed to support multi-node inference, it works just 
    - 帮助信息完全中文化
 
 2. **用户体验优化**
+   - 优先通过modelscope魔社或huggingface国内镜像下载大模型
+   - recipe菜单互动化加载
+   - 配方添加--served-model-name参数（默认为.yaml的文件名，方便openclaw配置连接）
    - 修复了部分脚本缩进问题
    - 添加了详细的中文说明文档
    - 改进了错误提示信息
