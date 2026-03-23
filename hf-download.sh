@@ -21,6 +21,8 @@ usage() {
     echo "用法：$0 [选项] <模型名称>"
     echo "  <model-name>                : HuggingFace model name (e.g., 'QuantTrio/MiniMax-M2-AWQ')"
     echo "  <模型名称>                  : HuggingFace 模型名称（例如：'QuantTrio/MiniMax-M2-AWQ'）"
+    echo "  -l, --list                  : List available recipes"
+    echo "  -l, --list                  : 列出可用配方"
     echo "  -c, --copy-to <hosts>       : Host(s) to copy the model to. Accepts comma or space-delimited lists after the flag."
     echo "  -c, --copy-to <主机>        : 将模型复制到哪些主机。支持逗号或空格分隔的列表"
     echo "      --copy-to-host          : Alias for --copy-to (backwards compatibility)."
@@ -73,17 +75,37 @@ copy_model_to_host() {
 # 参数解析
 while [[ "$#" -gt 0 ]]; do
     case $1 in
+        -l|--list)
+            echo "Listing available recipes:"
+            echo "列出可用配方:"
+            echo ""
+            for recipe in "$(dirname "$0")/recipes"/*.yaml; do
+                if [[ -f "$recipe" ]]; then
+                    name=$(basename "$recipe" .yaml)
+                    desc=$(python3 -c "
+import yaml
+try:
+    with open('$recipe', 'r') as f:
+        recipe_data = yaml.safe_load(f)
+    print(recipe_data.get('description', ''))
+except:
+    pass
+" 2>/dev/null)
+                    echo "  $name"
+                    if [[ -n "$desc" ]]; then
+                        echo "    → $desc"
+                    fi
+                fi
+            done
+            exit 0
+            ;;
         -c|--copy-to|--copy-to-host|--copy-to-hosts)
             shift
-            # Consume arguments until the next flag or end of args
-            # 消耗参数直到下一个标志或参数结束
             while [[ "$#" -gt 0 && "$1" != -* ]]; do
                 add_copy_hosts "$1"
                 shift
             done
 
-            # If no hosts specified, use autodiscovery
-            # 如果没有指定主机，使用自动发现
             if [ "${#COPY_HOSTS[@]}" -eq 0 ]; then
                 echo "No hosts specified. Using autodiscovery..."
                 echo "未指定主机。使用自动发现..."
@@ -96,8 +118,6 @@ while [[ "$#" -gt 0 ]]; do
                     exit 1
                 fi
                 
-                # Use PEER_NODES directly
-                # 直接使用 PEER_NODES
                 if [ ${#PEER_NODES[@]} -gt 0 ]; then
                     COPY_HOSTS=("${PEER_NODES[@]}")
                 fi
@@ -116,8 +136,6 @@ while [[ "$#" -gt 0 ]]; do
         -u|--user) SSH_USER="$2"; shift ;;
         -h|--help) usage ;;
         *) 
-            # If positional argument is provided
-            # 如果提供了位置参数
             if [ -z "${MODEL_NAME:-}" ]; then
                 MODEL_NAME="$1"
             else
@@ -162,22 +180,16 @@ fi
 check_or_prompt_token() {
     local source_name="$1"
     
-    # ModelScope doesn't need token
-    # ModelScope 不需要 token
     if [ "$source_name" = "modelscope" ]; then
         return 0
     fi
     
-    # Check if HF_TOKEN is already set
-    # 检查 HF_TOKEN 是否已设置
     if [ -n "$HF_TOKEN" ]; then
         echo "✓ Using HF_TOKEN from environment"
         echo "✓ 使用环境变量中的 HF_TOKEN"
         return 0
     fi
     
-    # Check if HUGGING_FACE_HUB_TOKEN is set (alternative env var)
-    # 检查 HUGGING_FACE_HUB_TOKEN 是否已设置（备用环境变量）
     if [ -n "$HUGGING_FACE_HUB_TOKEN" ]; then
         HF_TOKEN="$HUGGING_FACE_HUB_TOKEN"
         echo "✓ Using HUGGING_FACE_HUB_TOKEN from environment"
@@ -185,8 +197,6 @@ check_or_prompt_token() {
         return 0
     fi
     
-    # For HF mirrors and official, prompt for token
-    # 对于 HF mirror 和官方源，提示输入 token
     if [ "$source_name" = "hf-mirror" ] || [ "$source_name" = "official" ]; then
         echo ""
         echo "⚠️  HuggingFace token not found!"
@@ -203,10 +213,10 @@ check_or_prompt_token() {
         echo "💡 Tip: You can skip this by using ModelScope (first priority source)"
         echo "💡 提示：你可以使用 ModelScope（第一优先级的源）来跳过此步骤"
         echo ""
-        read -p "Do you want to continue without token? (需要HuggingFace Token下载，没有token可能无法下载或速度受限) [Y/n]: " -r
+        read -p "Do you want to continue without token? [Y/n]: " -r
         if [[ ! $REPLY =~ ^[Yy]$ ]]; then
             echo ""
-            read -s -p "Enter your HuggingFace token请输入你的HuggingFace tooken: " HF_TOKEN
+            read -s -p "Enter your HuggingFace token: " HF_TOKEN
             echo ""
             if [ -z "$HF_TOKEN" ]; then
                 echo "Error: No token provided."
@@ -222,13 +232,6 @@ check_or_prompt_token() {
 # Start time tracking
 # 开始时间追踪
 START_TIME=$(date +%s)
-
-# ============================================================
-# Multi-source download with fallback support
-# 多源下载并支持自动回退
-# Source priority: ModelScope > HF Mirror > Official HF
-# 下载源优先级：ModelScope > HF Mirror > Official HF
-# ============================================================
 
 # Define mirror sources (in priority order)
 # 定义镜像源（按优先级顺序）
@@ -253,14 +256,11 @@ download_from_source() {
     echo "  URL: $source_url"
     echo "========================================="
     
-    # Check/prompt for HF_TOKEN before HF downloads
-    # 在 HF 下载之前检查/提示 HF_TOKEN
     check_or_prompt_token "$source_name"
     if [ $? -ne 0 ]; then
         return 1
     fi
     
-    # 国内源提示
     if [ "$source_name" = "hf-mirror" ]; then
         echo "🇨🇳 国内源下载中，无需梯子"
         echo "🇨🇳 Downloading from domestic source, no VPN needed"
@@ -270,16 +270,12 @@ download_from_source() {
         echo "🇨🇳 Downloading from ModelScope, no VPN needed"
         echo "-----------------------------------------"
         
-        # 检测 ModelScope 是否已安装
-        # 检测 ModelScope 是否已安装
         if ! python3 -c "import modelscope" 2>/dev/null; then
             echo ""
             echo "⚠️  ModelScope 未安装，正在自动安装..."
             echo "⚠️  ModelScope not installed, installing automatically..."
             echo "-----------------------------------------"
             
-            # 尝试使用国内源安装
-            # 尝试使用国内源安装
             if pip3 install modelscope -i https://mirrors.aliyun.com/pypi/simple/ 2>/dev/null; then
                 echo "✓ ModelScope 安装成功"
                 echo "✓ ModelScope installed successfully"
@@ -305,25 +301,51 @@ download_from_source() {
         echo "-----------------------------------------"
     fi
     
-    # For ModelScope, use a different approach
-    # 对于 ModelScope，使用不同的方法
     if [ "$source_name" = "modelscope" ]; then
-        # Try using Python modelscope library (most reliable)
-        # 尝试使用 Python modelscope 库（最可靠）
-        if python3 -c "
+        # Download and convert to HF format
+        python3 << EOF_MODELSCOPE
 from modelscope import snapshot_download
 import os
-os.makedirs('$HUB_PATH', exist_ok=True)
-snapshot_download('$model', cache_dir='$HUB_PATH')
-" 2>/dev/null; then
+import sys
+
+hub_path = "$HUB_PATH"
+model = "$model"
+
+# Create cache directory
+os.makedirs(hub_path, exist_ok=True)
+
+# Download model
+try:
+    result = snapshot_download(model, cache_dir=hub_path)
+    print(f'ModelScope download successful: {result}')
+    print(f'ModelScope 下载成功：{result}')
+    
+    # Parse model name
+    if "/" in model:
+        org, model_name = model.split("/", 1)
+        ms_dir = os.path.join(hub_path, org, model_name)
+        hf_dir_name = f"models--{org}--{model_name}"
+        hf_dir_path = os.path.join(hub_path, hf_dir_name)
+        models_dir = os.path.join(hub_path, f"models--{org}")
+        
+        if os.path.isdir(ms_dir) and not os.path.exists(hf_dir_path):
+            os.makedirs(models_dir, exist_ok=True)
+            os.rename(ms_dir, hf_dir_path)
+            print(f'Converted: {org}/{model_name} -> {hf_dir_name}')
+            print(f'已转换：{org}/{model_name} -> {hf_dir_name}')
+    
+    sys.exit(0)
+except Exception as e:
+    print(f'Error: {e}', file=sys.stderr)
+    sys.exit(1)
+EOF_MODELSCOPE
+        
+        if [ $? -eq 0 ]; then
             return 0
+        else
+            return 1
         fi
-        return 1
     else
-        # For HF mirrors, use HF_ENDPOINT environment variable
-        # 对于 HF mirror，使用 HF_ENDPOINT 环境变量
-        # Use HF_TOKEN for authentication
-        # 使用 HF_TOKEN 进行认证
         if [ -n "$HF_TOKEN" ]; then
             if HF_ENDPOINT="$source_url" HUGGING_FACE_HUB_TOKEN="$HF_TOKEN" uvx hf download "$model"; then
                 return 0
@@ -417,44 +439,17 @@ fi
 
 # Determine model directory path
 # 确定模型目录路径
-# uvx hf download stores models in ~/.cache/huggingface/hub with the pattern: models--<org>--<model>-<suffix>
-# uvx hf download 将模型存储在 ~/.cache/huggingface/hub，格式为：models--<org>--<model>-<后缀>
 MODEL_DIR=""
 
-# Try to find the model directory
-# 尝试找到模型目录
-# The pattern for model directories is: ~/.cache/huggingface/hub/models--ORG--MODEL-VARIATION (or similar)
-# 模型目录的模式是：~/.cache/huggingface/hub/models--ORG--MODEL-VARIATION（或类似）
-# Model names like "QuantTrio/MiniMax-M2-AWQ" become "models--QuantTrio--MiniMax-M2-AQW" or similar
-# 模型名称如 "QuantTrio/MiniMax-M2-AWQ" 变为 "models--QuantTrio--MiniMax-M2-AQW" 或类似
-# Parse org and model name from MODEL_NAME
-# 从 MODEL_NAME 解析 org 和模型名称
 if [[ "$MODEL_NAME" == */* ]]; then
     ORG="${MODEL_NAME%%/*}"
     MODEL="${MODEL_NAME##*/}"
+    MODEL_DIR="$HUB_PATH/models--${ORG}--${MODEL}"
 else
-    ORG=""
-    MODEL="$MODEL_NAME"
+    MODEL_DIR="$HUB_PATH/$MODEL_NAME"
 fi
 
-# Convert to the directory pattern used by HuggingFace
-# 转换为 HuggingFace 使用的目录模式
-
-if [ -d "$HUB_PATH" ]; then
-    if [ -n "$ORG" ]; then
-        MODEL_DIR="$HUB_PATH/models--${ORG}--${MODEL}"
-    else
-        # For models without org, check both patterns
-        # 对于没有 org 的模型，检查两种模式
-        if [ -d "$HUB_PATH/models--${MODEL}" ]; then
-            MODEL_DIR="$HUB_PATH/models--${MODEL}"
-        else
-            MODEL_DIR="$HUB_PATH/${MODEL}"
-        fi
-    fi
-fi
-
-if [ -z "$MODEL_DIR" ]; then
+if [ -z "$MODEL_DIR" ] || [ ! -d "$MODEL_DIR" ]; then
     echo "Error: Could not find downloaded model directory in $HUB_PATH"
     echo "错误：在 $HUB_PATH 中找不到下载的模型目录"
     echo "Please check the ~/.cache/huggingface/hub directory manually."
