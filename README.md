@@ -8,6 +8,7 @@ cd spark-vllm-docker-cn
 ##选择可用的配置加载相应模型，不同模型等待加载根据网络情况耗时不等。首次需要下载比较慢。
 ./run-recipe.sh
 ```
+***注意：本人的主机还在运行中尚不能进行完整测试，所以无法保证代码准确性和可行行，如有急用先参考原始项目进行部署[spark-vllm-docker](https://github.com/eugr/spark-vllm-docker。
 # vLLM Docker Optimized for DGX Spark (单节点/多节点)
 
 > **中文说明：** 本仓库基于 [spark-vllm-docker](https://github.com/eugr/spark-vllm-docker) 进行本地化改进，添加中英双语支持，并在大模型下载时优先使用魔社源和HuggingFace国内镜像，更好地支持中文用户。
