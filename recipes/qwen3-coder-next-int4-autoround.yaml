@@ -32,6 +32,7 @@ env:
 # The vLLM serve command template
 command: |
   vllm serve Intel/Qwen3-Coder-Next-int4-AutoRound \
+    --served-model-name qwen3-coder-next-int4-autoround \
     --enable-auto-tool-choice \
     --tool-call-parser qwen3_coder \
     --gpu-memory-utilization {gpu_memory_utilization} \

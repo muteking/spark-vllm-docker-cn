@@ -3,7 +3,7 @@
 
 recipe_version: "1"
 name: OpenAI GPT-OSS 120B
-description: vLLM serving openai/gpt-oss-120b with MXFP4 quantization and FlashInfer
+description: vLLM 服务 openai/gpt-oss-120b，使用 MXFP4 量化和 FlashInfer
 
 # HuggingFace model to download (optional, for --download-model)
 model: openai/gpt-oss-120b
@@ -34,6 +34,7 @@ env:
 # Uses MXFP4 quantization for memory efficiency
 command: |
   vllm serve openai/gpt-oss-120b \
+      --served-model-name openai-gpt-oss-120b \
       --tool-call-parser openai \
       --reasoning-parser openai_gptoss \
       --enable-auto-tool-choice \

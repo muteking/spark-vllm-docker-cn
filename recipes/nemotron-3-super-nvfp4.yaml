@@ -2,7 +2,7 @@
 # Optimized for Marlin backend throughput
 recipe_version: "1"
 name: Nemotron-3-Super-NVFP4-Marlin-Optimized
-description: vLLM serving Nemotron-3-Super-120B using Marlin kernels
+description: vLLM 服务 Nemotron-3-Super-120B，使用 Marlin 内核
 
 model: nvidia/NVIDIA-Nemotron-3-Super-120B-A12B-NVFP4
 container: vllm-node
@@ -27,6 +27,7 @@ env:
 
 command: |
   vllm serve nvidia/NVIDIA-Nemotron-3-Super-120B-A12B-NVFP4 \
+  --served-model-name nemotron-3-super-nvfp4 \
   --kv-cache-dtype fp8 \
   -tp {tensor_parallel} \
   --trust-remote-code \

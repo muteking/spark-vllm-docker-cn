@@ -4,7 +4,7 @@
 
 recipe_version: "1"
 name: Qwen35-35B-A3B
-description: vLLM serving Qwen3.5-35B-A3B-FP8
+description: vLLM 服务 Qwen3.5-35B-A3B-FP8
 
 # HuggingFace model to download (optional, for --download-model)
 model: Qwen/Qwen3.5-35B-A3B-FP8
@@ -35,6 +35,7 @@ env:
 # The vLLM serve command template
 command: |
   vllm serve Qwen/Qwen3.5-35B-A3B-FP8 \
+    --served-model-name qwen3.5-35b-a3b-fp8 \
     --host {host} \
     --port {port} \
     --max-model-len {max_model_len} \

@@ -4,7 +4,7 @@
 
 recipe_version: "1"
 name: Nemotron-3-Nano-NVFP4
-description: vLLM serving Nemotron-3-Nano-NVFP4 on a SINGLE NODE ONLY!
+description: vLLM 服务 Nemotron-3-Nano-NVFP4（仅单节点！）
 
 # HuggingFace model to download (optional, for --download-model)
 model: nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B-NVFP4
@@ -36,6 +36,7 @@ env:
 # The vLLM serve command template
 command: |
   vllm serve nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B-NVFP4  \
+     --served-model-name nemotron-3-nano-nvfp4 \
      --max-model-len {max_model_len} \
      --port {port} --host {host} \
      --trust-remote-code \

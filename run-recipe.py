@@ -1,86 +1,86 @@
 #!/usr/bin/env python3
 """
-run-recipe.py - One-click model deployment using YAML recipes
+run-recipe.py - 使用 YAML 配方的单点击模型部署
 
-This script provides a high-level interface for deploying models with
-pre-configured settings. It handles:
-- Model download from HuggingFace (optional)
-- Container building and distribution to worker nodes
-- Mod application
-- Launch script generation
-- Both solo (single node) and cluster deployments
+此脚本提供高级接口以部署预配置模型
+设置。它处理:
+- 从 HuggingFace 下载模型（可选）
+- 容器构建并分发到工作节点
+- 应用补丁
+- 生成启动脚本
+- 单机模式和集群部署
 
-Usage:
+用法:
     ./run-recipe.py recipes/glm-4.7-nvfp4.yaml
     ./run-recipe.py glm-4.7-nvfp4 --port 9000 --solo
     ./run-recipe.py minimax-m2-awq --setup  # Full setup: build + download + run
     ./run-recipe.py --list
 
 ================================================================================
-ARCHITECTURE OVERVIEW (for developers extending this script)
+架构概览（供扩展此脚本的开发人员）
 ================================================================================
 
 DEPLOYMENT PIPELINE:
     ┌─────────────────────────────────────────────────────────────────────────────┐
-    │  CLI Args  →  Load Recipe  →  Resolve Nodes  →  Build  →  Download  →  Run  │
+    │  CLI 参数 → 加载配方 → 解析节点 → 构建 → 下载 → 运行  │
     └─────────────────────────────────────────────────────────────────────────┘
 
-KEY ABSTRACTIONS:
-    - Recipe (YAML): Declarative model configuration (see load_recipe docstring)
-    - Phases: Build, Download, Run - each can run independently (--build-only, etc.)
-    - Nodes: Head (first) + Workers (rest) - images/models copied to workers
+关键抽象:
+    - 配方 (YAML): 声明式模型配置（参见 load_recipe 文档字符串）
+    - 阶段：构建、下载、运行 - 每个阶段可独立运行（--build-only 等）
+    - 节点：主节点（第一个）+ 工作节点（其余）- 镜像/模型复制给工作节点
 
-EXTENSION POINTS:
+扩展点:
 
-    1. ADD NEW RECIPE FIELDS:
-       - Update load_recipe() to validate/set defaults
-       - Use the field in generate_launch_script() or main()
-       - Document in recipe YAML schema below
+    1. 添加新配方字段:
+       - 更新 load_recipe() 以验证/设置默认值
+       - 在 generate_launch_script() 或 main() 中使用该字段
+       - 在下方的配方 YAML 模式中记录
 
-    2. ADD NEW CLI OPTIONS:
-       - Add to appropriate argument group in main()
-       - Handle in the corresponding phase (build/download/run)
-       - Pass to generate_launch_script() via overrides dict if needed
+    2. 添加新 CLI 选项:
+       - 添加到 main() 中的适当参数组
+       - 在相应阶段处理（构建/下载/运行）
+       - 如有需要，通过 overrides 字典传递给 generate_launch_script()
 
-    3. ADD NEW DEPLOYMENT PHASES:
-       - Follow the pattern: check if needed → dry-run print → execute
-       - Insert between existing phases in main()
-       - Add corresponding --phase-only flag
+    3. 添加新部署阶段:
+       - 遵循模式：检查是否需要 → 干跑打印 → 执行
+       - 插入 main() 中现有阶段之间
+       - 添加相应的 --phase-only 标志
 
-    4. SUPPORT NEW MODEL SOURCES:
-       - Add detection logic in download_model() or check_model_exists()
-       - Create new download script or handle inline
+    4. 支持新模型来源:
+       - 在 download_model() 或 check_model_exists() 中添加检测逻辑
+       - 创建新的下载脚本或内联处理
 
-    5. SUPPORT NEW CONTAINER RUNTIMES:
-       - Modify check_image_exists() and build_image()
-       - May need to update launch-cluster.sh as well
+    5. 支持新容器运行时:
+       - 修改 check_image_exists() 和 build_image()
+       - 可能也需要更新 launch-cluster.sh
 
-RECIPE YAML SCHEMA:
-    name: str              # Required: Human-readable name
-    recipe_version: str    # Required: Recipe schema version (e.g., '1'). Used by run-recipe.py
-                           #           to check compatibility and available features.
-    container: str         # Required: Docker image tag
-    command: str           # Required: vLLM serve command with {placeholders}
-    description: str       # Optional: Brief description
-    model: str             # Optional: HuggingFace model ID for --setup
-    mods: list[str]        # Optional: Mod directories to apply
-    defaults: dict         # Optional: Default values for command placeholders
-    env: dict              # Optional: Environment variables
-    build_args: list[str]  # Optional: Args for build-and-copy.sh
-    cluster_only: bool     # Optional: Require cluster mode (default: false)
-    solo_only: bool        # Optional: Require solo mode (default: false)
+配方 YAML 模式:
+    name: str              # 必需：人类可读的名称
+    recipe_version: str    # 必需：配方模式版本（如 '1'）。由 run-recipe.py 使用
+                           #           用于检查兼容性和可用功能。
+    container: str         # 必需：Docker 镜像标签
+    command: str           # 必需：vLLM serve 命令，包含 {占位符}
+    description: str       # 可选：简短描述
+    model: str             # 可选：用于 --setup 的 HuggingFace 模型 ID
+    mods: list[str]        # 可选：要应用的 Mod 目录
+    defaults: dict         # 可选：命令占位符的默认值
+    env: dict              # 可选：环境变量
+    build_args: list[str]  # 可选：build-and-copy.sh 的参数
+    cluster_only: bool     # 可选：要求集群模式（默认：false）
+    solo_only: bool        # 可选：要求单机模式（默认：false）
 
-RECIPE VERSION HISTORY:
-    Version 1 (default): Initial schema with all fields above supported.
+配方版本历史:
+    版本 1（默认）：初始模式，支持上述所有字段。
 
-RELATED FILES:
-    - run-recipe.sh: Bash wrapper that ensures Python deps are installed
-    - recipes/*.yaml: Recipe definitions
-    - examples/: Example launch scripts for direct use with launch-cluster.sh
-    - launch-cluster.sh: Low-level container orchestration
-    - build-and-copy.sh: Docker build and distribution
-    - hf-download.sh: HuggingFace model download and sync
-    - autodiscover.sh: Network topology detection
+相关文件:
+    - run-recipe.sh: Bash 包装器，确保安装 Python 依赖
+    - recipes/*.yaml: 配方定义
+    - examples/: 可直接与 launch-cluster.sh 一起使用的示例启动脚本
+    - launch-cluster.sh: 低级容器编排
+    - build-and-copy.sh: Docker 构建和分发
+    - hf-download.sh: HuggingFace 模型下载和同步
+    - autodiscover.sh: 网络拓扑检测
 """
 
 import argparse
@@ -95,7 +95,7 @@ from typing import Any
 try:
     import yaml
 except ImportError:
-    print("Error: PyYAML is required. Install with: pip install pyyaml")
+    print("错误：需要 PyYAML。使用以下命令安装：pip install pyyaml")
     sys.exit(1)
 
 
@@ -158,8 +158,8 @@ def load_recipe(recipe_path: Path) -> dict[str, Any]:
                 recipe_path = candidate
                 break
         else:
-            print(f"Error: Recipe not found: {recipe_path}")
-            print(f"Searched in: {recipe_path}, {RECIPES_DIR}")
+            print(f"错误：未找到配方：{recipe_path}")
+            print(f"搜索位置：{recipe_path}, {RECIPES_DIR}")
             sys.exit(1)
     
     with open(recipe_path) as f:
@@ -169,7 +169,7 @@ def load_recipe(recipe_path: Path) -> dict[str, Any]:
     required = ["name", "recipe_version", "container", "command"]
     for field in required:
         if field not in recipe:
-            print(f"Error: Recipe missing required field: {field}")
+            print(f"错误：配方缺少必需字段：{field}")
             sys.exit(1)
     
     # Set defaults for optional fields
@@ -187,8 +187,8 @@ def load_recipe(recipe_path: Path) -> dict[str, Any]:
     SUPPORTED_VERSIONS = ["1"]
     recipe_ver = str(recipe["recipe_version"])
     if recipe_ver not in SUPPORTED_VERSIONS:
-        print(f"Warning: Recipe uses schema version '{recipe_ver}', but this run-recipe.py supports: {SUPPORTED_VERSIONS}")
-        print("Some features may not work correctly. Consider updating run-recipe.py.")
+        print(f"警告：配方使用模式版本 '{recipe_ver}'，但此 run-recipe.py 支持：{SUPPORTED_VERSIONS}")
+        print("某些功能可能无法正常工作。请考虑更新 run-recipe.py。")
     
     return recipe
 
@@ -206,15 +206,15 @@ def list_recipes() -> None:
     - Recipe directory is defined by RECIPES_DIR constant at module level
     """
     if not RECIPES_DIR.exists():
-        print("No recipes directory found.")
+        print("未找到 recipes 目录。")
         return
     
     recipes = sorted(RECIPES_DIR.glob("*.yaml"))
     if not recipes:
-        print("No recipes found in recipes/ directory.")
+        print("recipes/ 目录中未找到配方。")
         return
     
-    print("Available recipes:\n")
+    print("可用配方：\n")
     for recipe_path in recipes:
         try:
             recipe = load_recipe(recipe_path)
@@ -235,9 +235,9 @@ def list_recipes() -> None:
             if model:
                 print(f"    Model: {model}")
             if cluster_only:
-                print("    Cluster only: Yes")
+                print("    仅集群模式：是")
             if solo_only:
-                print("    Solo only: Yes")
+                print("    仅单机模式：是")
             print(f"    Container: {container}")
             if build_args:
                 print(f"    Build args: {' '.join(build_args)}")
@@ -317,11 +317,11 @@ def build_image(image: str, copy_to: list[str] | None = None, build_args: list[s
     if copy_to:
         cmd.extend(["--copy-to", ",".join(copy_to)])
     
-    print(f"Building image '{image}'...")
+    print(f"正在构建镜像 '{image}'...")
     if build_args:
-        print(f"Build args: {' '.join(build_args)}")
+        print(f"构建参数：{' '.join(build_args)}")
     if copy_to:
-        print(f"Will copy to: {', '.join(copy_to)}")
+        print(f"将复制至：{', '.join(copy_to)}")
     
     result = subprocess.run(cmd)
     return result.returncode == 0
@@ -348,16 +348,16 @@ def download_model(model: str, copy_to: list[str] | None = None) -> bool:
         True if download (and copy) succeeded, False otherwise
     """
     if not DOWNLOAD_SCRIPT.exists():
-        print(f"Error: Download script not found: {DOWNLOAD_SCRIPT}")
+        print(f"错误：未找到下载脚本：{DOWNLOAD_SCRIPT}")
         return False
     
     cmd = [str(DOWNLOAD_SCRIPT), model]
     if copy_to:
         cmd.extend(["--copy-to", ",".join(copy_to)])
     
-    print(f"Downloading model '{model}'...")
+    print(f"正在下载模型 '{model}'...")
     if copy_to:
-        print(f"Will copy to: {', '.join(copy_to)}")
+        print(f"将复制至：{', '.join(copy_to)}")
     
     result = subprocess.run(cmd)
     return result.returncode == 0
@@ -455,7 +455,7 @@ def generate_launch_script(recipe: dict[str, Any], overrides: dict[str, Any], is
         command = command.format(**params)
     except KeyError as e:
         print(f"Error: Missing parameter in recipe command: {e}")
-        print(f"Available parameters: {list(params.keys())}")
+        print(f"可用参数：{list(params.keys())}")
         sys.exit(1)
     
     # In solo or no-ray mode, remove --distributed-executor-backend
@@ -586,7 +586,7 @@ def save_env_file(env: dict[str, str]) -> None:
     with open(ENV_FILE, "w") as f:
         f.write("\n".join(lines))
     
-    print(f"Saved to {ENV_FILE}")
+    print(f"已保存到 {ENV_FILE}")
 
 
 def run_autodiscover() -> dict[str, str] | None:
@@ -615,7 +615,7 @@ def run_autodiscover() -> dict[str, str] | None:
         print(f"Error: Autodiscover script not found: {AUTODISCOVER_SCRIPT}")
         return None
     
-    print("Running autodiscover...")
+    print("正在运行自动发现...")
     print()
     
     # Run autodiscover in a subshell and capture the variables
@@ -638,11 +638,11 @@ def run_autodiscover() -> dict[str, str] | None:
     )
     
     if result.returncode != 0:
-        print("Autodiscover output:")
+        print("自动发现输出：")
         print(result.stdout)
         if result.stderr:
             print(result.stderr)
-        print("Error: Autodiscover failed")
+        print("错误：自动发现失败")
         return None
     
     # Print the autodiscover output (excluding the final variable lines)
@@ -663,7 +663,7 @@ def run_autodiscover() -> dict[str, str] | None:
         local_ip = env.get("LOCAL_IP", "")
         
         if len(all_nodes) > 1:
-            print("Select which nodes to include in the cluster:")
+            print("选择要包含在集群中的节点：")
             print()
             
             selected_nodes = []
@@ -680,17 +680,17 @@ def run_autodiscover() -> dict[str, str] | None:
                     elif response in ("n", "no"):
                         break
                     else:
-                        print("    Please enter 'y' or 'n'")
+                        print("    请输入 'y' 或 'n'")
             
             print()
             
             if not selected_nodes:
-                print("No nodes selected. Aborting.")
+                print("未选择任何节点。中止。")
                 return None
             
             if len(selected_nodes) == 1:
                 print(f"Only one node selected: {selected_nodes[0]}")
-                print("This will run in solo mode (single node).")
+                print("这将以单机模式（单节点）运行。")
             else:
                 print(f"Selected {len(selected_nodes)} nodes: {', '.join(selected_nodes)}")
             
@@ -865,7 +865,7 @@ Examples:
         if env is None:
             return 1
         
-        print("Discovered configuration:")
+        print("发现的配置：")
         for key, value in sorted(env.items()):
             print(f"  {key}={value}")
         print()
@@ -884,7 +884,7 @@ Examples:
                 print(f"  {key}={value}")
         else:
             print(f"No .env file found at {ENV_FILE}")
-            print("Run with --discover to auto-detect cluster nodes.")
+            print("使用 --discover 运行以自动检测集群节点。")
         
         if not args.recipe:
             return 0
@@ -902,7 +902,7 @@ Examples:
     recipe_path = Path(args.recipe)
     recipe = load_recipe(recipe_path)
     
-    print(f"Recipe: {recipe['name']}")
+    print(f"配方：{recipe['name']}")
     if recipe.get("description"):
         print(f"  {recipe['description']}")
     print()
@@ -926,11 +926,11 @@ Examples:
                 nodes = parse_nodes(env["CLUSTER_NODES"])
                 nodes_from_env = True
                 if nodes:
-                    print(f"Using cluster nodes from .env: {', '.join(nodes)}")
+                    print(f"使用 .env 中的集群节点：{', '.join(nodes)}")
                     print()
             else:
                 # No nodes specified and no .env - run autodiscover
-                print("No cluster nodes configured. Running autodiscover...")
+                print("未配置集群节点。正在运行自动发现...")
                 print()
                 
                 discovered_env = run_autodiscover()
@@ -941,7 +941,7 @@ Examples:
                     if nodes:
                         # Ask if user wants to save to .env
                         print()
-                        response = input("Save this configuration to .env for future use? [Y/n]: ").strip().lower()
+                        response = input("Save this configuration to .env for future use?是否保存这个配置到.env备用？ [Y/n]: ").strip().lower()
                         if response in ("", "y", "yes"):
                             save_env_file(discovered_env)
                         print()
@@ -964,48 +964,48 @@ Examples:
     is_solo = args.solo or not is_cluster
     
     if getattr(args, 'no_ray', False) and is_solo:
-        print("Error: --no-ray is incompatible with --solo. Solo mode already runs without Ray.")
+        print("错误：--no-ray 与 --solo 不兼容。单机模式已经无需 Ray 运行。")
         return 1
 
     if cluster_only and is_solo:
-        print(f"Error: Recipe '{recipe['name']}' requires cluster mode.")
-        print(f"This model is too large to run on a single node.")
+        print(f"错误：配方 '{recipe['name']}' 需要集群模式。")
+        print(f"此模型太大，无法在单节点上运行。")
         print()
-        print("Options:")
-        print(f"  1. Specify nodes directly:  {sys.argv[0]} {args.recipe} -n node1,node2")
-        print(f"  2. Auto-discover and save:  {sys.argv[0]} --discover")
-        print(f"     Then run:                {sys.argv[0]} {args.recipe}")
+        print("选项：")
+        print(f"  1. 直接指定相应节点:  {sys.argv[0]} {args.recipe} -n node1,node2")
+        print(f"  2. 自动发现并保存:  {sys.argv[0]} --discover")
+        print(f"     然后运行:                {sys.argv[0]} {args.recipe}")
         return 1
     if solo_only and not is_solo:
-        print(f"Error: Recipe '{recipe['name']}' requires solo mode.")
-        print("This recipe is intended to run on a single node only.")
+        print(f"错误：配方 '{recipe['name']}' 需要单机模式。")
+        print("此配方仅设计在单节点上运行。")
         print()
-        print("Options:")
-        print(f"  1. Run solo:                {sys.argv[0]} {args.recipe} --solo")
-        print(f"  2. Remove nodes from .env:  {sys.argv[0]} --show-env")
+        print("选项：")
+        print(f"  1. Run solo单机运行:                {sys.argv[0]} {args.recipe} --solo")
+        print(f"  2. Remove nodes from .env从环境变量中移除节点:  {sys.argv[0]} --show-env")
         return 1
     
     # Determine copy targets for cluster deployments
     copy_targets = worker_nodes if is_cluster else None
     
     if args.dry_run:
-        print("=== Dry Run ===")
+        print("=== 干跑模式 ===")
         print(f"Container: {container}")
         if build_args:
-            print(f"Build args: {' '.join(build_args)}")
+            print(f"构建参数：{' '.join(build_args)}")
         if model:
             print(f"Model: {model}")
         if cluster_only:
-            print("Cluster only: Yes (model too large for single node)")
+            print("Cluster only: Yes (model too large for single node)模型太大无法单节点运行")
         if solo_only:
-            print("Solo only: Yes (single node only)")
+            print("Solo only: Yes (single node only)单节点可运行")
         if nodes:
             source = "(from .env)" if nodes_from_env else ""
             print(f"Nodes: {', '.join(nodes)} {source}".strip())
             print(f"  Head: {nodes[0]}")
             if worker_nodes:
                 print(f"  Workers: {', '.join(worker_nodes)}")
-        print(f"Solo mode: {is_solo}")
+        print(f"Solo mode单机版: {is_solo}")
         if eth_if:
             print(f"Ethernet interface: {eth_if}{' (from .env)' if not args.eth_if else ''}")
         if ib_if:
@@ -1013,7 +1013,7 @@ Examples:
         if args.container_name:
             print(f"Container name: {args.container_name}")
         if args.non_privileged:
-            print("Non-privileged mode: Yes")
+            print("非特权模式：是")
         print()
 
     # --- Build Phase ---
@@ -1033,9 +1033,9 @@ Examples:
             image_exists = check_image_exists(container)
             
             if args.force_build or not image_exists:
-                print("=== Building Container ===")
+                print("=== 构建容器 ===")
                 if not build_image(container, copy_targets, build_args):
-                    print("Error: Failed to build container")
+                    print("错误：构建容器失败")
                     return 1
                 print()
             else:
@@ -1048,14 +1048,14 @@ Examples:
                             missing_on.append(worker)
                     if missing_on:
                         print(f"Container missing on workers: {', '.join(missing_on)}")
-                        print("Building and copying...")
+                        print("正在构建和复制...")
                         if not build_image(container, missing_on, build_args):
-                            print("Error: Failed to build/copy container")
+                            print("错误：构建/复制容器失败")
                             return 1
                 print()
         
         if args.build_only:
-            print("Build complete." if not args.dry_run else "")
+            print("构建完成。" if not args.dry_run else "")
             return 0
     
     # --- Download Phase ---
@@ -1073,9 +1073,9 @@ Examples:
             model_exists = check_model_exists(model)
             
             if args.force_download or not model_exists:
-                print("=== Downloading Model ===")
+                print("=== 下载模型 ===")
                 if not download_model(model, copy_targets):
-                    print("Error: Failed to download model")
+                    print("错误：下载模型失败")
                     return 1
                 print()
             else:
@@ -1083,7 +1083,7 @@ Examples:
                 print()
         
         if args.download_only:
-            print("Download complete." if not args.dry_run else "")
+            print("下载完成。" if not args.dry_run else "")
             return 0
     
     # --- Run Phase ---
@@ -1094,17 +1094,17 @@ Examples:
     if not args.dry_run and not args.setup and not check_image_exists(container):
         print(f"Container image '{container}' not found locally.")
         print()
-        print("Options:")
+        print("选项：")
         print(f"  1. Use --setup to build and run")
         print(f"  2. Build manually: ./build-and-copy.sh -t {container}")
         print()
         response = input("Build now? [y/N] ").strip().lower()
         if response == 'y':
             if not build_image(container, copy_targets, build_args):
-                print("Error: Failed to build image")
+                print("错误：构建镜像失败")
                 return 1
         else:
-            print("Aborting.")
+            print("中止。")
             return 1
     
     # Build overrides from CLI args
@@ -1142,13 +1142,13 @@ Examples:
     script_content = generate_launch_script(recipe, overrides, is_solo=is_solo, extra_args=extra_args, no_ray=getattr(args, 'no_ray', False))
     
     if args.dry_run:
-        print("=== Generated Launch Script ===")
+        print("=== 生成的启动脚本 ===")
         print(script_content)
-        print("=== What would be executed ===")
+        print("=== 将执行的操作 ===")
         print()
-        print("1. The above script is saved to a temporary file")
+        print("1. 上述脚本保存到临时文件")
         print()
-        print("2. launch-cluster.sh is called with:")
+        print("2. 调用 launch-cluster.sh:")
         cmd_parts = ["   ./launch-cluster.sh", "-t", container]
         for mod in recipe.get("mods", []):
             cmd_parts.extend(["--apply-mod", mod])
@@ -1191,7 +1191,7 @@ Examples:
         cmd_parts.extend(["\\", "\n      --launch-script", "/tmp/tmpXXXXXX.sh"])
         print(" ".join(cmd_parts))
         print()
-        print("3. The launch script runs inside the container")
+        print("3. 启动脚本在容器内运行")
         return 0
     
     # Write temporary launch script
@@ -1268,7 +1268,7 @@ Examples:
         if is_cluster:
             print(f"Cluster: {len(nodes)} nodes")
         else:
-            print("Mode: Solo")
+            print("模式：单机模式")
         print()
         
         # Execute

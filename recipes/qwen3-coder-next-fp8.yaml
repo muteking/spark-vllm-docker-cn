@@ -4,7 +4,7 @@
 
 recipe_version: "1"
 name: Qwen3-Coder-Next-FP8
-description: vLLM serving Qwen3-Coder-Next-FP8
+description: vLLM 服务 Qwen3-Coder-Next-FP8
 
 # HuggingFace model to download (optional, for --download-model)
 model: Qwen/Qwen3-Coder-Next-FP8
@@ -32,6 +32,7 @@ env: {}
 # The vLLM serve command template
 command: |
   vllm serve Qwen/Qwen3-Coder-Next-FP8 \
+    --served-model-name qwen3-coder-next-fp8 \
     --enable-auto-tool-choice \
     --tool-call-parser qwen3_coder \
     --gpu-memory-utilization {gpu_memory_utilization} \

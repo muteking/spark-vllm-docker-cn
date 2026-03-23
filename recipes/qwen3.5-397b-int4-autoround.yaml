@@ -5,7 +5,7 @@
 
 recipe_version: "1"
 name: Qwen3.5-397B-INT4-Autoround
-description: EXPERIMENTAL recipe for Qwen3.5-397B-INT4-Autoround (please refer to README for details! Use with `--no-ray` parameter!)
+description: Qwen3.5-397B-INT4-Autoround 实验性配方（请参见 README 获取详细信息！请使用 `--no-ray` 参数！）
 
 # HuggingFace model to download (optional, for --download-model)
 model: Intel/Qwen3.5-397B-A17B-int4-AutoRound
@@ -41,6 +41,7 @@ env:
 # The vLLM serve command template
 command: |
   vllm serve Intel/Qwen3.5-397B-A17B-int4-AutoRound \
+    --served-model-name qwen3.5-397b-int4-autoround \
     --max-model-len {max_model_len} \
     --max-num-seqs 2 \
     --kv-cache-dtype fp8 \

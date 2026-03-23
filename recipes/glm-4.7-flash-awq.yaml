@@ -10,7 +10,7 @@
 
 recipe_version: "1"
 name: GLM-4.7-Flash-AWQ
-description: vLLM serving cyankiwi/GLM-4.7-Flash-AWQ-4bit with speed optimization patch
+description: vLLM 服务 cyankiwi/GLM-4.7-Flash-AWQ-4bit，使用速度优化补丁
 
 # HuggingFace model to download
 model: cyankiwi/GLM-4.7-Flash-AWQ-4bit

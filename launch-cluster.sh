@@ -1,24 +1,29 @@
 #!/bin/bash
 
 # Default Configuration
+# 默认配置
 IMAGE_NAME="vllm-node"
 DEFAULT_CONTAINER_NAME="vllm_node"
 HF_CACHE_DIR="${HF_HOME:-$HOME/.cache/huggingface}"
 # Modify these if you want to pass additional docker args or set VLLM_SPARK_EXTRA_DOCKER_ARGS variable
+# 如需传递额外的 docker 参数或设置 VLLM_SPARK_EXTRA_DOCKER_ARGS 变量，可修改此处
 DOCKER_ARGS="-e NCCL_IGNORE_CPU_AFFINITY=1 -v $HF_CACHE_DIR:/root/.cache/huggingface"
 
 # Append additional arguments from environment variable
+# 从环境变量追加额外参数
 if [[ -n "$VLLM_SPARK_EXTRA_DOCKER_ARGS" ]]; then
     DOCKER_ARGS="$DOCKER_ARGS $VLLM_SPARK_EXTRA_DOCKER_ARGS"
 fi
 
 # ETH_IF and IB_IF will be auto-detected if not provided
+# 如果未提供，ETH_IF 和 IB_IF 将自动检测
 ETH_IF=""
 IB_IF=""
 NCCL_DEBUG_VAL=""
 MASTER_PORT="29501"
 
 # Initialize variables
+# 初始化变量
 NODES_ARG=""
 CONTAINER_NAME="$DEFAULT_CONTAINER_NAME"
 COMMAND_TO_RUN=""
@@ -44,39 +49,69 @@ PIDS_LIMIT="4096"
 SHM_SIZE_GB="64"
 
 # Function to print usage
+# 打印使用信息的函数
 usage() {
     echo "Usage: $0 [-n <node_ips>] [-t <image_name>] [--name <container_name>] [--eth-if <if_name>] [--ib-if <if_name>] [--nccl-debug <level>] [--check-config] [--solo] [-d] [action] [command]"
+echo "用法：$0 [-n <节点 IP>] [-t <镜像名>] [--name <容器名>] [--eth-if <接口名>] [--ib-if <接口名>] [--nccl-debug <级别>] [--check-config] [--solo] [-d] [操作] [命令]"
     echo "  -n, --nodes     Comma-separated list of node IPs (Optional, auto-detected if omitted)"
+echo "  -n, --nodes     逗号分隔的节点 IP 列表（可选，省略则自动检测）"
     echo "  -t              Docker image name (Optional, default: $IMAGE_NAME)"
+echo "  -t              Docker 镜像名称（可选，默认：$IMAGE_NAME）"
     echo "  --name          Container name (Optional, default: $DEFAULT_CONTAINER_NAME)"
+echo "  --name          容器名称（可选，默认：$DEFAULT_CONTAINER_NAME）"
     echo "  --eth-if        Ethernet interface (Optional, auto-detected)"
+echo "  --eth-if        以太网接口（可选，自动检测）"
     echo "  --ib-if         InfiniBand interface (Optional, auto-detected)"
+echo "  --ib-if         InfiniBand 接口（可选，自动检测）"
     echo "  -e, --env       Environment variable to pass to container (e.g. -e VAR=val)"
+echo "  -e, --env       传递给容器的环境变量（例如：-e VAR=val）"
     echo "  -j              Number of parallel jobs for build environment variables (optional)"
+echo "  -j              构建环境变量并行作业数（可选）"
     echo "  --nccl-debug    NCCL debug level (Optional, one of: VERSION, WARN, INFO, TRACE). If no level is provided, defaults to INFO."
+echo "  --nccl-debug    NCCL 调试级别（可选，其中之一：VERSION、WARN、INFO、TRACE）。如果未提供级别，默认为 INFO。"
     echo "  --apply-mod     Path to directory or zip file containing run.sh to apply before launch (Can be specified multiple times)"
+echo "  --apply-mod     包含 run.sh 的目录或 zip 文件路径，启动前应用（可指定多次）"
     echo "  --launch-script Path to bash script to execute in the container (from examples/ directory or absolute path). If launch script is specified, action should be omitted."
+echo "  --launch-script 在容器中执行的 bash 脚本路径（来自 examples/目录或绝对路径）。如果指定了 launch 脚本，应省略操作。"
     echo "  --check-config  Check configuration and auto-detection without launching"
+echo "  --check-config  检查配置和自动检测，但不启动"
     echo "  --solo          Solo mode: skip autodetection, launch only on current node, do not launch Ray cluster"
+echo "  --solo          单独模式：跳过自动检测，仅在当前节点启动，不启动 Ray 集群"
     echo "  --master-port   Port for cluster coordination: Ray head port or PyTorch distributed master port (default: 29501)"
+echo "  --master-port   集群协调端口：Ray 主节点端口或 PyTorch 分布式主端口（默认：29501）"
     echo "  --no-ray        No-Ray mode: run multi-node vLLM without Ray (uses PyTorch distributed backend)"
+echo "  --no-ray        无 Ray 模式：不使用 Ray 运行多节点 vLLM（使用 PyTorch 分布式后端）"
     echo "  --no-cache-dirs Do not mount default cache directories (~/.cache/vllm, ~/.cache/flashinfer, ~/.triton)"
+echo "  --no-cache-dirs 不挂载默认缓存目录 (~/.cache/vllm、~/.cache/flashinfer、~/.triton)"
     echo "  -d              Daemon mode (only for 'start' action)"
+echo "  -d              守护进程模式（仅适用于'start'操作）"
     echo "  --non-privileged Run in non-privileged mode (removes --privileged and --ipc=host)"
+echo "  --non-privileged 以非特权模式运行（移除 --privileged 和 --ipc=host）"
     echo "  --mem-limit-gb  Memory limit in GB (default: 110, only with --non-privileged)"
+echo "  --mem-limit-gb  内存限制（GB，默认：110，仅与 --non-privileged 一起使用）"
     echo "  --mem-swap-limit-gb Memory+swap limit in GB (default: mem-limit + 10, only with --non-privileged)"
+echo "  --mem-swap-limit-gb  内存 +swap 限制（GB，默认：mem-limit + 10，仅与 --non-privileged 一起使用）"
     echo "  --pids-limit    Process limit (default: 4096, only with --non-privileged)"
+echo "  --pids-limit    进程限制（默认：4096，仅与 --non-privileged 一起使用）"
     echo "  --shm-size-gb   Shared memory size in GB (default: 64, only with --non-privileged)"
+echo "  --shm-size-gb   共享内存大小（GB，默认：64，仅与 --non-privileged 一起使用）"
     echo "  action          start | stop | status | exec (Default: start). Not compatible with --launch-script."
+echo "  action          start | stop | status | exec（默认：start）。与 --launch-script 不兼容。"
     echo "  command         Command to run (only for 'exec' action). Not compatible with --launch-script."
+echo "  command         要运行的命令（仅用于'exec'操作）。与 --launch-script 不兼容。"
     echo ""
+echo ""
     echo "Launch Script Usage:"
+echo "Launch 脚本用法:"
     echo "  $0 --launch-script examples/my-script.sh   # Script copied to container and executed"
+echo "  $0 --launch-script examples/my-script.sh   # 脚本复制到容器并执行"
     echo "  $0 --launch-script /path/to/script.sh      # Uses absolute path to script"
+echo "  $0 --launch-script /path/to/script.sh      # 使用脚本的绝对路径"
     exit 1
 }
 
 # Parse arguments
+# 解析参数
 while [[ "$#" -gt 0 ]]; do
     case $1 in
         -n|--nodes) NODES_ARG="$2"; shift ;;
@@ -111,6 +146,7 @@ while [[ "$#" -gt 0 ]]; do
         start|stop|status) 
             if [[ -n "$LAUNCH_SCRIPT_PATH" ]]; then
                 echo "Error: Action '$1' is not compatible with --launch-script. Please omit the action or not use --launch-script."
+echo "错误：操作'$1'与 --launch-script 不兼容。请省略操作或不要使用 --launch-script。"
                 exit 1
             fi
             ACTION="$1" 
@@ -118,6 +154,7 @@ while [[ "$#" -gt 0 ]]; do
         exec)
             if [[ -n "$LAUNCH_SCRIPT_PATH" ]]; then
                 echo "Error: Action 'exec' is not compatible with --launch-script. Please omit the action or not use --launch-script."
+echo "错误：操作'exec'与 --launch-script 不兼容。请省略操作或不要使用 --launch-script。"
                 exit 1
             fi
             ACTION="exec"
@@ -127,6 +164,7 @@ while [[ "$#" -gt 0 ]]; do
             ;;
         *) 
             echo "Error: Unknown argument or action: $1"
+echo "错误：未知参数或操作：$1"
             usage
             ;;
     esac
@@ -134,22 +172,27 @@ while [[ "$#" -gt 0 ]]; do
 done
 
 # Validate non-privileged mode flags
+# 验证非特权模式标志
 if [[ "$NON_PRIVILEGED_MODE" == "true" ]]; then
     # Set default swap limit if not specified
+# 如果未指定，设置默认的 swap 限制
     if [[ -z "$MEM_SWAP_LIMIT_GB" ]]; then
         MEM_SWAP_LIMIT_GB=$((MEM_LIMIT_GB + 10))
     fi
 else
     # Check if non-privileged flags were used without --non-privileged
+# 检查是否在不使用 --non-privileged 的情况下使用了非特权标志
     for flag in "--mem-limit-gb" "--mem-swap-limit-gb" "--pids-limit" "--shm-size-gb"; do
         if [[ "$*" == *"$flag"* ]]; then
             echo "Error: $flag can only be used with --non-privileged"
+echo "错误：$flag 只能与 --non-privileged 一起使用"
             exit 1
         fi
     done
 fi
 
 # Append NCCL_DEBUG if set, with validation
+# 如果设置了 NCCL_DEBUG，追加并验证
 if [[ -n "$NCCL_DEBUG_VAL" ]]; then
     case "$NCCL_DEBUG_VAL" in
         VERSION|WARN|INFO|TRACE)
@@ -157,13 +200,16 @@ if [[ -n "$NCCL_DEBUG_VAL" ]]; then
             ;;
         *)
             echo "Error: Invalid value for --nccl-debug: $NCCL_DEBUG_VAL"
+echo "错误：--nccl-debug 的值无效：$NCCL_DEBUG_VAL"
             echo "Allowed values: VERSION, WARN, INFO, TRACE"
+echo "允许的值：VERSION、WARN、INFO、TRACE"
             exit 1
             ;;
     esac
 fi
 
 # Add build job parallelization environment variables if BUILD_JOBS is set
+# 如果设置了 BUILD_JOBS，添加构建任务并行化的环境变量
 if [[ -n "$BUILD_JOBS" ]]; then
     DOCKER_ARGS="$DOCKER_ARGS -e MAX_JOBS=$BUILD_JOBS"
     DOCKER_ARGS="$DOCKER_ARGS -e CMAKE_BUILD_PARALLEL_LEVEL=$BUILD_JOBS"
@@ -172,30 +218,38 @@ if [[ -n "$BUILD_JOBS" ]]; then
 fi
 
 # Add cache dirs if requested
+# 如果请求，添加缓存目录
 CACHE_DIRS_TO_CREATE=()
 if [[ "$MOUNT_CACHE_DIRS" == "true" ]]; then
     # vLLM Cache
+# vLLM 缓存
     DOCKER_ARGS="$DOCKER_ARGS -v $HOME/.cache/vllm:/root/.cache/vllm"
     CACHE_DIRS_TO_CREATE+=("$HOME/.cache/vllm")
     
     # FlashInfer Cache
+# FlashInfer 缓存
     DOCKER_ARGS="$DOCKER_ARGS -v $HOME/.cache/flashinfer:/root/.cache/flashinfer"
     CACHE_DIRS_TO_CREATE+=("$HOME/.cache/flashinfer")
 
     # Triton Cache
+# Triton 缓存
     DOCKER_ARGS="$DOCKER_ARGS -v $HOME/.triton:/root/.triton"
     CACHE_DIRS_TO_CREATE+=("$HOME/.triton")
 fi
 
 # Resolve launch script path if specified
+# 如果指定，解析 launch 脚本路径
 if [[ -n "$LAUNCH_SCRIPT_PATH" ]]; then
     # Check if it's an absolute path or relative path that exists
+# 检查是否是绝对路径或存在的路径
     if [[ -f "$LAUNCH_SCRIPT_PATH" ]]; then
         LAUNCH_SCRIPT_PATH=$(realpath "$LAUNCH_SCRIPT_PATH")
     # Check if it's just a filename, look in examples/ directory
+# 检查是否只是文件名，在 examples/目录中查找
     elif [[ -f "$SCRIPT_DIR/examples/$LAUNCH_SCRIPT_PATH" ]]; then
         LAUNCH_SCRIPT_PATH="$SCRIPT_DIR/examples/$LAUNCH_SCRIPT_PATH"
     # Check if it's a name without .sh extension
+# 检查是否是不带 .sh 扩展名的名称
     elif [[ -f "$SCRIPT_DIR/examples/${LAUNCH_SCRIPT_PATH}.sh" ]]; then
         LAUNCH_SCRIPT_PATH="$SCRIPT_DIR/examples/${LAUNCH_SCRIPT_PATH}.sh"
     else
@@ -362,6 +416,7 @@ cleanup() {
     fi
 
     echo ""
+echo ""
     echo "Stopping cluster..."
     
     # Stop Head
@@ -722,6 +777,7 @@ start_cluster() {
 # Wait for Cluster Readiness
 wait_for_cluster() {
     echo "Waiting for cluster to be ready..."
+echo "正在等待集群就绪..."
     local retries=30
     local count=0
     
@@ -729,6 +785,7 @@ wait_for_cluster() {
         # Check if ray is responsive
         if docker exec "$CONTAINER_NAME" ray status >/dev/null 2>&1; then
              echo "Cluster head is responsive."
+echo "集群主节点响应正常。"
              # Give workers a moment to connect
              sleep 5
              return 0
@@ -739,6 +796,7 @@ wait_for_cluster() {
     done
     
     echo "Timeout waiting for cluster to start."
+echo "等待集群启动超时。"
     exit 1
 }
 
