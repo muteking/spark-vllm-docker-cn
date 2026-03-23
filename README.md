@@ -1,3 +1,14 @@
+# 开机第一步先睹为快，体验一下128G内存被瞬间灌满的感觉把！！！
+开机后打开终端依次运行下列命令：
+```bash
+git clone https://github.com/muteking/spark-vllm-docker-cn.git
+cd spark-vllm-docker-cn
+##一键部署环境，第一次运行需要下载会比较慢。
+./build-and-copy.sh
+##选择可用的配置加载相应模型，不同模型等待加载根据网络情况耗时不等。首次需要下载比较慢。
+./run-recipe.sh
+```
+***注意：本人的主机还在运行中尚不能进行完整测试，所以无法保证代码准确性和可行行，如有急用先参考原始项目进行部署[spark-vllm-docker](https://github.com/eugr/spark-vllm-docker。
 # vLLM Docker Optimized for DGX Spark (单节点/多节点)
 
 > **中文说明：** 本仓库基于 [spark-vllm-docker](https://github.com/eugr/spark-vllm-docker) 进行本地化改进，添加中英双语支持，并在大模型下载时优先使用魔社源和HuggingFace国内镜像，更好地支持中文用户。
@@ -18,6 +29,8 @@ While it was primarily developed to support multi-node inference, it works just 
 ✅我本人是小白爱好者，所有更改都由Openclaw配合Qwen3.5根据我的想法完成，所以理论上提供不了任何更深入的技术支持。
 ✅本项目所有中文翻译都由机器完成，不保证准确性。
 
+✅本项目更改了hf-download.sh脚本适配国内环境下载，添加了国内魔社modelscope下载和HuggingFace国内镜像以提升下载速度。
+✅本项目所有翻译都由机器完成，不保证准确性。
 
 ### 🚀 主要功能
 
@@ -38,6 +51,9 @@ While it was primarily developed to support multi-node inference, it works just 
    - 帮助信息完全中文化
 
 2. **用户体验优化**
+   - 优先通过modelscope魔社或huggingface国内镜像下载大模型
+   - recipe菜单互动化加载
+   - 配方添加--served-model-name参数（默认为.yaml的文件名，方便openclaw配置连接）
    - 修复了部分脚本缩进问题
    - 添加了详细的中文说明文档
    - 改进了错误提示信息
