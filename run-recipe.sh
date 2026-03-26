@@ -33,6 +33,7 @@ select_recipe() {
     echo "共找到 ${#recipes[@]} 个配方" >&2
     echo "" >&2
     echo "Legend / 图例:" >&2
+    echo "  【4x 集群模式】 - 4 台 DGX SPark 通过 200G 交换机连接配置后运行" >&2
     echo "  【集群模式】 - 需要两台或以上 DGX Spark 通过 QSFP 互联后运行 (cluster_only: true)" >&2
     echo "  【单机模式】 - 单机可运行 (其他所有情况)" >&2
     echo "" >&2
@@ -43,10 +44,15 @@ select_recipe() {
         recipe_path="${recipes[$i]}"
         recipe_name=$(basename "$recipe_path" .yaml)
         
-        # Check if cluster_only: true
-        # 检查是否 cluster_only: true
-        local mode_tag=""
-        if [[ -f "$recipe_path" ]]; then
+        # Determine mode: 4x cluster > standard cluster > single
+        # 判断模式：4x 集群 > 标准集群 > 单机
+        local mode_tag="【单机模式】"
+        
+        # 优先检查是否在 4x-spark-cluster 目录下
+        if [[ "$recipe_path" == */4x-spark-cluster/* ]]; then
+            mode_tag="【4x 集群模式】"
+        elif [[ -f "$recipe_path" ]]; then
+            # 检查 cluster_only: true
             local cluster_only=$(python3 -c "
 import yaml
 try:
@@ -57,12 +63,8 @@ except:
     pass
 " 2>/dev/null)
             
-            # 如果 cluster_only: true，标注【集群模式】，否则标注【单机模式】
-            # If cluster_only: true, tag as【集群模式】, otherwise tag as【单机模式】
             if [[ "$cluster_only" == "true" ]]; then
                 mode_tag="【集群模式】"
-            else
-                mode_tag="【单机模式】"
             fi
         fi
         

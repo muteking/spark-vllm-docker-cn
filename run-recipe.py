@@ -172,6 +172,13 @@ def load_recipe(recipe_path: Path) -> dict[str, Any]:
             print(f"错误：配方缺少必需字段：{field}")
             sys.exit(1)
     
+    # Detect 4x-spark-cluster recipes (自动检测 4x 集群配方)
+    # Check if recipe is in 4x-spark-cluster directory
+    # 检查配方是否在 4x-spark-cluster 目录中 → 直接标注为 4x 集群模式
+    if "4x-spark-cluster" in str(recipe_path):
+        recipe["4x_cluster_only"] = True
+        # 4x 集群模式配方直接标注，无需判断单机/集群
+    
     # Set defaults for optional fields
     recipe.setdefault("description", "")
     recipe.setdefault("model", None)
@@ -180,6 +187,7 @@ def load_recipe(recipe_path: Path) -> dict[str, Any]:
     recipe.setdefault("env", {})
     recipe.setdefault("cluster_only", False)
     recipe.setdefault("solo_only", False)
+    recipe.setdefault("4x_cluster_only", False)  # 新增：4x 集群模式标识
     
     # Validate recipe version compatibility
     # EXTENSIBILITY: When adding new schema versions, update SUPPORTED_VERSIONS
@@ -209,24 +217,36 @@ def list_recipes() -> None:
         print("未找到 recipes 目录。")
         return
     
-    recipes = sorted(RECIPES_DIR.glob("*.yaml"))
+    # 递归扫描所有子目录（包括 4x-spark-cluster）
+    # Recursively scan all subdirectories (including 4x-spark-cluster)
+    recipes = sorted(RECIPES_DIR.rglob("*.yaml"))
     if not recipes:
         print("recipes/ 目录中未找到配方。")
         return
     
-    print("可用配方：\n")
+    # 分类收集配方
+    recipes_4x_cluster = []  # 4x 集群配方
+    recipes_normal = []      # 普通配方
+    
     for recipe_path in recipes:
-        try:
-            recipe = load_recipe(recipe_path)
+        recipe = load_recipe(recipe_path)
+        is_4x_cluster = recipe.get("4x_cluster_only", False)
+        
+        if is_4x_cluster:
+            recipes_4x_cluster.append((recipe_path, recipe))
+        else:
+            recipes_normal.append((recipe_path, recipe))
+    
+    # 显示 4x 集群配方（置顶）
+    if recipes_4x_cluster:
+        print("🔥【4x 集群模式】4x Spark Cluster (16 GPUs total, TP=4 per node) 🔥\n")
+        for recipe_path, recipe in recipes_4x_cluster:
             name = recipe.get("name", recipe_path.stem)
-            recipe_version = recipe.get("recipe_version", "1")
             desc = recipe.get("description", "")
             container = recipe.get("container", "vllm-node")
             build_args = recipe.get("build_args", [])
             model = recipe.get("model", "")
             mods = recipe.get("mods", [])
-            cluster_only = recipe.get("cluster_only", False)
-            solo_only = recipe.get("solo_only", False)
             
             print(f"  {recipe_path.name}")
             print(f"    Name: {name}")
@@ -234,19 +254,42 @@ def list_recipes() -> None:
                 print(f"    Description: {desc}")
             if model:
                 print(f"    Model: {model}")
-            if cluster_only:
-                print("    仅集群模式：是")
-            if solo_only:
-                print("    仅单机模式：是")
+            print("    【4x 集群模式】(4× DGX Spark, TP=4 per node) 4x Spark Cluster (16 GPUs total)")
             print(f"    Container: {container}")
             if build_args:
                 print(f"    Build args: {' '.join(build_args)}")
             if mods:
                 print(f"    Mods: {', '.join(mods)}")
             print()
-        except Exception as e:
-            print(f"  {recipe_path.name} (error loading: {e})")
-            print()
+    
+    # 显示普通配方
+    print("可用配方：\n")
+    for recipe_path, recipe in recipes_normal:
+        name = recipe.get("name", recipe_path.stem)
+        desc = recipe.get("description", "")
+        container = recipe.get("container", "vllm-node")
+        build_args = recipe.get("build_args", [])
+        model = recipe.get("model", "")
+        mods = recipe.get("mods", [])
+        cluster_only = recipe.get("cluster_only", False)
+        solo_only = recipe.get("solo_only", False)
+        
+        print(f"  {recipe_path.name}")
+        print(f"    Name: {name}")
+        if desc:
+            print(f"    Description: {desc}")
+        if model:
+            print(f"    Model: {model}")
+        if cluster_only:
+            print("    仅集群模式：是")
+        if solo_only:
+            print("    仅单机模式：是")
+        print(f"    Container: {container}")
+        if build_args:
+            print(f"    Build args: {' '.join(build_args)}")
+        if mods:
+            print(f"    Mods: {', '.join(mods)}")
+        print()
 
 
 def check_image_exists(image: str, host: str | None = None) -> bool:
@@ -961,10 +1004,21 @@ Examples:
     # Check if recipe requires cluster mode
     cluster_only = recipe.get("cluster_only", False)
     solo_only = recipe.get("solo_only", False)
+    is_4x_cluster = recipe.get("4x_cluster_only", False)
     is_solo = args.solo or not is_cluster
     
     if getattr(args, 'no_ray', False) and is_solo:
         print("错误：--no-ray 与 --solo 不兼容。单机模式已经无需 Ray 运行。")
+        return 1
+
+    if is_4x_cluster and is_solo:
+        print(f"错误：配方 '{recipe['name']}' 需要 4x Spark 集群模式。")
+        print(f"此模型需要 4 台 DGX Spark 节点 (TP=4 per node, 16 GPUs total)。")
+        print()
+        print("选项：")
+        print(f"  1. 直接指定 4 个节点：{sys.argv[0]} {args.recipe} -n node1,node2,node3,node4")
+        print(f"  2. 自动发现并保存：{sys.argv[0]} --discover")
+        print(f"     然后运行：         {sys.argv[0]} {args.recipe}")
         return 1
 
     if cluster_only and is_solo:
@@ -995,6 +1049,8 @@ Examples:
             print(f"构建参数：{' '.join(build_args)}")
         if model:
             print(f"Model: {model}")
+        if is_4x_cluster:
+            print("4x Spark Cluster: Yes (4 nodes, TP=4 per node, 16 GPUs total) 4x 集群模式 (4 节点，每节点 TP=4, 共 16GPU)")
         if cluster_only:
             print("Cluster only: Yes (model too large for single node)模型太大无法单节点运行")
         if solo_only:
@@ -1265,7 +1321,9 @@ Examples:
         print(f"Container: {container}")
         if recipe.get("mods"):
             print(f"Mods: {', '.join(recipe['mods'])}")
-        if is_cluster:
+        if is_4x_cluster:
+            print(f"模式：4x Spark 集群 (4 节点 × 4 GPU = 16 GPU total)")
+        elif is_cluster:
             print(f"Cluster: {len(nodes)} nodes")
         else:
             print("模式：单机模式")
